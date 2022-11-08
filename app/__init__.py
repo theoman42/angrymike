@@ -4,6 +4,7 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_login import LoginManager
+from flask_socketio import SocketIO, send, emit
 
 from .models import db, User
 from .api.user_routes import user_routes
@@ -15,9 +16,28 @@ from .config import Config
 
 app = Flask(__name__)
 
+
 # Setup login manager
 login = LoginManager(app)
 login.login_view = 'auth.unauthorized'
+
+
+# configure cors_allowed_origins
+if os.environ.get('FLASK_ENV') == 'production':
+    origins = [
+        'http://actual-app-url.herokuapp.com',
+        'https://actual-app-url.herokuapp.com'
+    ]
+else:
+    origins = "*"
+
+# Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins=origins)
+
+# handle chat messages
+@socketio.on("chat")
+def handle_chat(data):
+    emit("chat", data, broadcast=True)
 
 
 @login.user_loader
@@ -36,6 +56,7 @@ Migrate(app, db)
 
 # Application Security
 CORS(app)
+
 
 
 # Since we are deploying with Docker and Flask,
@@ -70,3 +91,18 @@ def react_root(path):
     if path == 'favicon.ico':
         return app.send_static_file('favicon.ico')
     return app.send_static_file('index.html')
+
+
+@socketio.on("connect")
+def test():
+    print('test connection',)
+    emit('Success', {'data', 'Connected'})
+
+
+# @socketio.on('message')
+# def handleMessage(msg):
+#     print('Message: ' + msg)
+#     send(msg, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app)
